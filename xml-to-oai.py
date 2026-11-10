@@ -13,6 +13,9 @@ from flask import Flask, request, Response
 from markupsafe import escape
 
 OAI_SCHEMA = "http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd"
+DATA_DIR = "../data"
+
+PREFIX = "divas"
 
 app = Flask(__name__)
 
@@ -20,15 +23,27 @@ app = Flask(__name__)
 @app.route("/")
 def main():
     verb = request.args.get('verb', '')
+    metadataPrefix = request.args.get('metadataPrefix', '')
     
     if len(verb) > 0:
         if verb == "Identify":
-            return identify(verb)
+            body = identify(verb)
+        elif verb == "ListSets":
+            body = list_sets(verb)
+        elif verb == "ListIdentifiers":
+            #validate other responses
+            if metadataPrefix != 'oai_dc':
+                body = error(verb, code="cannotDisseminateFormat")
+            else:
+                body = list_identifiers(verb)
+            
+            
         else:
-            return error(verb, code="badVerb")
+            body = error(verb, code="badVerb")
     else:
-        return error(verb, code="badVerb")
-
+        body = error(verb, code="badVerb")
+        
+    return Response(body, mimetype="application/xml")
 
 #----------------------
 #OAI-PMH VERB RESPONSES
@@ -45,20 +60,58 @@ def identify(verb):
     
     root.append(identify)
     
-    body = ET.tostring(root, encoding="utf-8", xml_declaration=True)
-    return Response(body, mimetype="application/xml")
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+
+def list_identifiers(verb):
+    root = construct_dom(verb)
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+
+def list_sets(verb):
+    
+    root = construct_dom(verb)
+    
+    #iterate through DATA_DIR and evaluate whether there are folders in the Github repo that can represent sets or if the set is for the entire organization
+    sets = []
+    for org in os.scandir(DATA_DIR):    
+        if os.path.isdir(org):
+            list = os.scandir(os.path.join(DATA_DIR, org))
+            
+            collections = []
+            
+            for item in list:
+                if os.path.isdir(item) and not item.name.startswith("."):
+                    collections.append(item.name)
+                    
+            if len(collections) > 0:
+                for collection in collections:
+                    sets.append(f"{org.name}:{collection}")
+            else:
+                sets.append(org.name)    
+            
+    #create ListSets
+    list_sets = ET.Element("ListSets")
+    for set in sets:
+        set_node = ET.Element("set")
+        ET.SubElement(set_node, "setSpec").text = set
+        ET.SubElement(set_node, "setName").text = set
+        list_sets.append(set_node)
+        
+    root.append(list_sets)
+    
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 #generate error responses by evaluating verbs or other parameters
 def error(verb, code: str):
     root = construct_dom(verb)
     
     if code == "badVerb":
-        ET.SubElement(root, "error", code="badVerb").text = "Illegal OAI verb"
+        ET.SubElement(root, "error", code=code).text = "Value of the verb argument is not a legal OAI-PMH verb, the verb argument is missing, or the verb argument is repeated."
+    elif code == "cannotDisseminateFormat":
+        ET.SubElement(root, "error", code=code).text = "The metadata format identified by the value given for the metadataPrefix argument is not supported by the item or by the repository."
     else:
         ET.SubElement(root, "error", code="other").text = "other"
 
-    body = ET.tostring(root, encoding="utf-8", xml_declaration=True)
-    return Response(body, mimetype="application/xml")
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
     
 def construct_dom(verb):
     ET.register_namespace('',"http://www.openarchives.org/OAI/2.0/")
@@ -78,4 +131,4 @@ def construct_dom(verb):
     return root
     
 if __name__=="__main__":
-    uvicorn.run(app, port=8000)
+    app.run(debug=True)
