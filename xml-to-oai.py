@@ -64,6 +64,9 @@ def identify(verb):
 
 def list_identifiers(verb):
     root = construct_dom(verb)
+    
+    
+    
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 def list_sets(verb):
