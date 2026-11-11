@@ -1,49 +1,19 @@
 """
 Author: Ethan Gruber
 Date: November 2026
-Function: Create an OAI-PMH wrapper on top of DPLAVA Github repositories of Dublin Core metadata.
+Function: Generate OAI-PMH XML from the directory structure of Github repositories of Dublic Core metadata. 
+This script operates on the command line for test purposes by providing OAI verbs to generate XML responses. It can be included to run as a Flask webapp.
 Perform minor normalization of ETDF dates and make OAI-PMH more compatible with existing DPLA harvesting services
 """
 
-import os, glob, sys, uvicorn, datetime
+import os, sys, datetime, argparse
 import xml.etree.ElementTree as ET
 from edtf import parse_edtf, text_to_edtf, struct_time_to_date
-from typing import Union
-from flask import Flask, request, Response
-from markupsafe import escape
 
 OAI_SCHEMA = "http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd"
 DATA_DIR = "../data"
 
 PREFIX = "divas"
-
-app = Flask(__name__)
-
-#there is only a root in OAI PMH
-@app.route("/")
-def main():
-    verb = request.args.get('verb', '')
-    metadataPrefix = request.args.get('metadataPrefix', '')
-    
-    if len(verb) > 0:
-        if verb == "Identify":
-            body = identify(verb)
-        elif verb == "ListSets":
-            body = list_sets(verb)
-        elif verb == "ListIdentifiers":
-            #validate other responses
-            if metadataPrefix != 'oai_dc':
-                body = error(verb, code="cannotDisseminateFormat")
-            else:
-                body = list_identifiers(verb)
-            
-            
-        else:
-            body = error(verb, code="badVerb")
-    else:
-        body = error(verb, code="badVerb")
-        
-    return Response(body, mimetype="application/xml")
 
 #----------------------
 #OAI-PMH VERB RESPONSES
@@ -60,14 +30,12 @@ def identify(verb):
     
     root.append(identify)
     
-    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+    return root
 
 def list_identifiers(verb):
     root = construct_dom(verb)
     
-    
-    
-    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+    return root
 
 def list_sets(verb):
     
@@ -101,7 +69,7 @@ def list_sets(verb):
         
     root.append(list_sets)
     
-    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+    return root
 
 #generate error responses by evaluating verbs or other parameters
 def error(verb, code: str):
@@ -114,7 +82,7 @@ def error(verb, code: str):
     else:
         ET.SubElement(root, "error", code="other").text = "other"
 
-    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+    return root
     
 def construct_dom(verb):
     ET.register_namespace('',"http://www.openarchives.org/OAI/2.0/")
@@ -132,6 +100,40 @@ def construct_dom(verb):
     ET.SubElement(root, "request", verb=verb).text = "url"
     
     return root
+
+#there is only a root in OAI PMH
+def main():
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--verb", help="OAI-PMH verb parameter")
+    parser.add_argument("--metadataPrefix", help="metadataPrefox parameter for ListIdentifiers")
+    args = parser.parse_args()
+    
+    verb = args.verb
+      
+    if verb:
+        if verb == "Identify":
+            dom = identify(verb)
+        elif verb == "ListSets":
+            dom = list_sets(verb)
+        elif verb == "ListIdentifiers":
+            #validate other responses
+            if args.metadataPrefix != 'oai_dc':
+                dom = error(verb, code="cannotDisseminateFormat")
+            else:
+                dom = list_identifiers(verb)
+            
+            
+        else:
+            dom = error(verb, code="badVerb")
+    else:
+        dom = error(verb, code="badVerb")
+    
+    #indent and serialize DOM into a string for output
+    ET.indent(dom, space="\t", level=0)    
+    xml_str = ET.tostring(dom, encoding="utf-8", xml_declaration=True)    
+    print(xml_str.decode("utf-8"))
     
 if __name__=="__main__":
-    app.run(debug=True)
+    main()
+    
