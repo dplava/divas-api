@@ -15,4 +15,8 @@ In the first phase, the OAI-PMH endpoint supports the `dplava` metadataPrefix, w
 1. Create a folder in the filesystem and download all dplava Github repositories, except for the University of Virginia, which will have a different workflow (and also has an incompatible directory structure). 
 1. Download the divas-api Github repository elsewhere.
 1. Run in development/test mode on command line:
-   1. Test
+   1. Install required Python libraries: `pip install --no-cache-dir -r requirements.txt`
+   1. Update the `DATA_DIR` constant in both Python files if necessary
+   1. Start up the webapp: `flask --app webapp run`. Debug mode can be activated with `--debug` if actively testing code.
+1. Production deployment with Docker with Gunicorn WSGI server:
+   1. 
