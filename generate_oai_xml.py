@@ -30,8 +30,7 @@ def identify(verb):
     ET.SubElement(identify, "repositoryName").text = "Digital Virginias"
     ET.SubElement(identify, "protocolVersion").text = "2.0"
     ET.SubElement(identify, "deletedRecord").text = "no"
-    ET.SubElement(identify, "granularity").text = "YYYY-MM-DDThh:mm:ssZ"
-    
+    ET.SubElement(identify, "granularity").text = "YYYY-MM-DDThh:mm:ssZ"  
     
     #remaining metadata goes here
     
@@ -43,6 +42,10 @@ def identify(verb):
 def list_identifiers_records(verb, setSpec, fromDate, untilDate, resumptionToken):
     root = construct_dom(verb)
     
+    #extract setSpect from resumptionToken
+    if len(resumptionToken) > 0:
+        setSpec = resumptionToken.split("/")[0]
+    
     file_list = get_file_list(setSpec, fromDate, untilDate)
     
     if len(file_list) > 0:
@@ -52,14 +55,14 @@ def list_identifiers_records(verb, setSpec, fromDate, untilDate, resumptionToken
         
         #if there are more files than the ROWS constant, then split into number of rows, with an index established by the resumptionToken, which should be an integer value
         if total > ROWS:
-            start = int(resumptionToken)
+            start = int(resumptionToken.split("/")[1]) if len(resumptionToken) > 0 else 0
             end = start + ROWS
                 
             generate_items(verb, node, file_list[start:end])
             
             #add resumptionToken if there are more pages to harvest
-            if start + ROWS < total:
-                resumptionToken = str(end)
+            if start + ROWS < total:        
+                resumptionToken = f"{setSpec}/{end}"
             else:
                 resumptionToken = ''
             
@@ -115,13 +118,16 @@ def process_dates(files, fromDate, untilDate):
 #generate each header with included OAI_DC metadata, extracted directly from XML file on filesystem
 def generate_items(verb, node, file_list):
     for path in file_list:
+        #accommodate Windows and Unix paths
+        path = path.replace("\\", "/")
         
         #parse directory and file structure without PATH in order to construct the setSpec and identifier
         sequence = path.replace(DATA_DIR, "").replace(".xml", "")
         sequence = sequence[1:] if sequence[0] == "/" else sequence
         
-        #prepend institutional prefix and turn path structure into colons for unique identifier
+        #prepend institutional prefix and turn path structure into colons for unique identifier. 
         components = sequence.split("/")
+        #print(components)
         setSpec = ":".join(components[0:-1])
         identifier = PREFIX + ":" + ":".join(components)
        
@@ -153,7 +159,7 @@ def generate_header(identifier, modified, setSpec):
     header = ET.Element("header")        
     ET.SubElement(header, "identifier").text = identifier
     ET.SubElement(header, "datestamp").text = time.strftime("%Y-%m-%dT%H:%M:%SZ", modified)
-    ET.SubElement(header, "setSpec").text = setSpec
+    ET.SubElement(header, "setSpec").text = "setSpec"
     
     return header
        
@@ -258,7 +264,7 @@ def construct_dom(verb):
 #------------------------
 
 #validate ISO 8601 date times, from https://stackoverflow.com/questions/41129921/validate-an-iso-8601-datetime-string-in-python
-def datetime_valid(dt_str, prop):
+def validate_dateTime(dt_str, prop):
     #test regex for ISO date (YYYY-MM-DD)
     iso_date = bool(re.search(r"^\d{4}-([0][1-9]|1[0-2])-([0][1-9]|[1-2]\d|3[01])$", dt_str))
     
@@ -276,6 +282,29 @@ def datetime_valid(dt_str, prop):
     except ValueError:
         return False
 
+def validate_token(resumptionToken, fromDate, untilDate):
+
+    #resumptionToken_valid is True unless invalidated by the following conditions
+    resumptionToken_valid = True
+    
+    if "/" in resumptionToken:
+        pieces = resumptionToken.split("/")
+        
+        try:
+            int(pieces[1])
+        except:
+            resumptionToken_valid = False
+        else:
+            setSpec = pieces[0]
+            file_list = get_file_list(setSpec, fromDate, untilDate)
+            
+            if len(file_list) == 0:
+                resumptionToken_valid = False
+    else:
+        resumptionToken_valid = False
+    
+    return resumptionToken_valid
+
 #there is only a root in OAI PMH
 def main():
     
@@ -291,11 +320,11 @@ def main():
     verb = '' if args.verb is None else args.verb
     metadataPrefix = '' if args.metadataPrefix is None else args.metadataPrefix
     setSpec = '' if args.setSpec is None else args.setSpec
-    resumptionToken = 0 if args.resumptionToken is None else args.resumptionToken
+    resumptionToken = '' if args.resumptionToken is None else args.resumptionToken
     
     #validate from and until parameters and convert to epoch time. If they are blank, then set from to 0 time from Epoch and until to current time. Otherwise use provided parameters
     if args.fromDate is not None:
-        fromDate_valid = datetime_valid(args.fromDate, 'from')
+        fromDate_valid = validate_dateTime(args.fromDate, 'from')
         if fromDate_valid == True:
             fromDate = isoparse(args.fromDate).timestamp()
     else:
@@ -303,7 +332,7 @@ def main():
         fromDate = 0
        
     if args.untilDate is not None:
-        untilDate_valid = datetime_valid(args.untilDate, 'until')
+        untilDate_valid = validate_dateTime(args.untilDate, 'until')
         if untilDate_valid == True:
             untilDate = isoparse(args.untilDate).timestamp()
     else:
@@ -312,11 +341,7 @@ def main():
         
         
     #validate resumptionToken to ensure it is an integer    
-    try:
-        int(resumptionToken)
-        resumptionToken_valid = True
-    except:
-        resumptionToken_valid = False
+    resumptionToken_valid = validate_token(resumptionToken, fromDate, untilDate)
  
     #evaluate verb parameter to determine the particular OAI-PMH XML response
     if verb:
@@ -327,19 +352,18 @@ def main():
         elif verb == "ListSets":
             dom = list_sets(verb)
         elif verb == "ListIdentifiers" or verb == "ListRecords":
-            #validate other responses
-            if metadataPrefix != 'dplava':
+            #validate other responses            
+            if metadataPrefix != 'dplava' and len(resumptionToken) == 0:
+                #metadataPrefix is not necessary for resumptionTokens
                 dom = error(verb, code="cannotDisseminateFormat")
             elif fromDate_valid == False:
                 dom = error(verb, code="badArgument", message = "from parameter is an invalid ISO dateTime")
             elif untilDate_valid == False:
                 dom = error(verb, code="badArgument", message = "until parameter is an invalid ISO dateTime")
-            elif resumptionToken_valid == False:
+            elif len(resumptionToken) > 0 and resumptionToken_valid == False:
                 dom = error(verb, code="badResumptionToken", message = "The value of the resumptionToken argument is invalid or expired.")
             else:
                 dom = list_identifiers_records(verb, setSpec, fromDate, untilDate, resumptionToken)
-            
-            
         else:
             dom = error(verb, code="badVerb")
     else:
