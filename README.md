@@ -14,3 +14,5 @@ In the first phase, the OAI-PMH endpoint supports the `dplava` metadataPrefix, w
 ## Deployment
 1. Create a folder in the filesystem and download all dplava Github repositories, except for the University of Virginia, which will have a different workflow (and also has an incompatible directory structure). 
 1. Download the divas-api Github repository elsewhere.
+1. Run in development/test mode on command line:
+   1. Test
