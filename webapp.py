@@ -10,7 +10,7 @@ from dateutil.parser import isoparse
 import xml.etree.ElementTree as ET
 from edtf import parse_edtf, text_to_edtf, struct_time_to_date
 from typing import Union
-from flask import Flask, request, Response
+from flask import Flask, request, redirect, Response
 from markupsafe import escape
 
 #include local OAI-PMH output processing functions
@@ -23,9 +23,13 @@ PREFIX = "divas"
 
 app = Flask(__name__)
 
-#there is only a root in OAI PMH
 @app.route("/")
 def main():
+     return redirect("/oai", code=302)
+
+#there is only a root in OAI PMH
+@app.route("/oai")
+def oai_pmh():
     verb = request.args.get('verb', '')
     metadataPrefix = request.args.get('metadataPrefix', '')
     setSpec = request.args.get('setSpec', '')
