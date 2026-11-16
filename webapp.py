@@ -5,10 +5,9 @@ Function: Create an OAI-PMH wrapper on top of DPLAVA Github repositories of Dubl
 Perform minor normalization of ETDF dates and make OAI-PMH more compatible with existing DPLA harvesting services
 """
 
-import os, sys, uvicorn, datetime, time
+import os, sys, datetime, time
 from dateutil.parser import isoparse
 import xml.etree.ElementTree as ET
-from edtf import parse_edtf, text_to_edtf, struct_time_to_date
 from typing import Union
 from flask import Flask, request, redirect, Response
 from markupsafe import escape
@@ -86,4 +85,4 @@ def oai_pmh():
     return Response(xml_str, mimetype="application/xml")
     
 if __name__=="__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000)
