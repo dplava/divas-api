@@ -246,10 +246,7 @@ def construct_dom(verb):
     root = ET.Element('OAI-PMH', attrib={"xmlns": "http://www.openarchives.org/OAI/2.0/",
                                          "xmlns:dc": "http://purl.org/dc/elements/1.1/",
                                          "xmlns:oai_dc": "http://www.openarchives.org/OAI/2.0/oai_dc/",
-                                         "xmlns:dcterms": "http://purl.org/dc/terms/",
                                          "xmlns:rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-                                         "xmlns:edm": "http://www.europeana.eu/schemas/edm/",
-                                         "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
                                          "xsi:schemaLocation": OAI_SCHEMA}) 
     ET.indent(root, space="\t", level=0)
     
