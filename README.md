@@ -12,10 +12,10 @@ This API works by deploying the Digital Virginias Github repositories to a centr
 In the first phase, the OAI-PMH endpoint supports the `dplava` metadataPrefix, which will output the Digital Virginias Dublin Core metadata application profile verbatim from the XML file stored on the filesystem. Ultimately, more formats can be implemented that include minor normalization or transformation to improve quality and interoperability upon harvest into DPLA.
 
 ## Deployment
-1. Create a folder in the filesystem and download all dplava Github repositories, except for the University of Virginia, which will have a different workflow (and also has an incompatible directory structure). 
-1. Download the divas-api Github repository elsewhere.
-1. Run in development/test mode on command line:
-   1. Install required Python libraries: `pip install --no-cache-dir -r requirements.txt`
+1. Create a folder in the filesystem and download all dplava Github repositories, except for the University of Virginia, which will have a different workflow (and also has an incompatible directory structure), for example, `/opt/dplava/data`
+1. Download the divas-api Github repository elsewhere, for example, `/opt/dplava` 
+1. Run in development/test mode on command line (which may require deploying a Python [virtual environment](https://python.land/virtual-environments/virtualenv)):
+   1. Navigate to the divas-api folder and install required Python libraries: `pip install --no-cache-dir -r requirements.txt`
    1. Update the `DATA_DIR` constant in both Python files if necessary
    1. Start up the webapp: `flask --app webapp run`. Debug mode can be activated with `--debug` if actively testing code.
 1. Production deployment with Docker with Gunicorn WSGI server:
