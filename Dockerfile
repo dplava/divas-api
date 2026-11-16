@@ -9,4 +9,4 @@ COPY . .
 
 RUN pip install gunicorn
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:webapp"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "webapp:app"]
