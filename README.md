@@ -18,6 +18,5 @@ In the first phase, the OAI-PMH endpoint supports the `dplava` metadataPrefix, w
    1. Navigate to the divas-api folder and install required Python libraries: `pip install --no-cache-dir -r requirements.txt`
    1. Update the `DATA_DIR` constant in both Python files if necessary
    1. Start up the webapp: `flask --app webapp run`. Debug mode can be activated with `--debug` if actively testing code.
-1. Production deployment with Docker with Gunicorn WSGI server:
-   1. Navigate to the Github repository and run `sudo docker build -t divas-api-production .`
-   1. Test that Docker puts up the web server by running `sudo docker run -p 5000:5000 divas-api-production`. It will be accessible at port 5000 on the server's domain name.
+1. Production deployment with in systemd:
+   1. TODO
