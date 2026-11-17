@@ -6,15 +6,18 @@ This script operates on the command line for test purposes by providing OAI verb
 Perform minor normalization of ETDF dates and make OAI-PMH more compatible with existing DPLA harvesting services
 """
 
-import os, glob, sys, time, argparse, re, datetime
+import os, glob, sys, time, argparse, re, datetime, yaml
 from dateutil.parser import isoparse
 import xml.etree.ElementTree as ET
 from edtf import parse_edtf, text_to_edtf, struct_time_to_date
 
+with open("config.yaml", "r") as file:
+    config = yaml.safe_load(file)
+
 OAI_SCHEMA = "http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd"
 DATA_DIR = "../data"
 
-PREFIX = "oai:" + "digitalvirginias.org"
+PREFIX = "oai:" + config["repository_domain"]
 ROWS = 100
 
 #----------------------
@@ -24,13 +27,18 @@ ROWS = 100
 # --- IDENTIFY ---
 #provide content hub metadata
 def identify(verb):
+    modified = get_earliest_date()
+    
     root = construct_dom(verb)
     
     identify = ET.Element("Identify")
-    ET.SubElement(identify, "repositoryName").text = "Digital Virginias"
+    ET.SubElement(identify, "repositoryName").text = config["repository_name"]
+    ET.SubElement(identify, "baseURL").text = "https://" + config["repository_name"]
     ET.SubElement(identify, "protocolVersion").text = "2.0"
+    ET.SubElement(identify, "earliestDatestamp").text = time.strftime("%Y-%m-%dT%H:%M:%SZ", modified)
     ET.SubElement(identify, "deletedRecord").text = "no"
     ET.SubElement(identify, "granularity").text = "YYYY-MM-DDThh:mm:ssZ"  
+    ET.SubElement(identify, "adminEmail").text = config["admin_email"]
     
     #remaining metadata goes here
     
@@ -38,8 +46,17 @@ def identify(verb):
     
     return root
 
+#extract a list of all XML files in DATA_DIR and order by modification ascending (oldest first)
+def get_earliest_date():
+    files = glob.glob(os.path.join(DATA_DIR, "**/*.xml"), recursive=True)
+    files.sort(key=os.path.getmtime)
+    
+    modified = time.strptime(time.ctime(os.path.getmtime(files[0])))
+    return modified
+
 # --- LIST IDENTIFIERS AND LIST RECORDS ---
 def list_identifiers_records(verb, setSpec, fromDate, untilDate, resumptionToken):
+    
     root = construct_dom(verb)
     
     #extract setSpect from resumptionToken
@@ -257,7 +274,8 @@ def construct_dom(verb):
     
     #create propert ISO 8601 dateTime for GMT without milliseconds
     ET.SubElement(root, "responseDate").text = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    ET.SubElement(root, "request", verb=verb).text = "url"
+    ET.SubElement(root, "request", verb=verb).text = config["base_endpoint_url"]
+    
     
     return root
 

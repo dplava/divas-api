@@ -1,0 +1,5 @@
+base_endpoint_url: http://127.0.0.1:5000/oai
+repository_name: Digital Virginias
+repository_domain: digitalvirginias.org #this is used to formulate the unique identifier for each item. Do not include https?://
+admin_email: example@example.org
+ 

@@ -15,11 +15,6 @@ from markupsafe import escape
 #include local OAI-PMH output processing functions
 from generate_oai_xml import error, identify, list_sets, list_metadata_formats, list_identifiers_records, validate_token
 
-OAI_SCHEMA = "http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd"
-DATA_DIR = "../data"
-
-PREFIX = "divas"
-
 app = Flask(__name__)
 
 @app.route("/")
@@ -29,6 +24,7 @@ def main():
 #there is only a root in OAI PMH
 @app.route("/oai")
 def oai_pmh():
+    
     verb = request.args.get('verb', '')
     metadataPrefix = request.args.get('metadataPrefix', '')
     setSpec = request.args.get('setSpec', '')
