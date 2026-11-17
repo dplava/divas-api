@@ -33,7 +33,7 @@ def identify(verb):
     
     identify = ET.Element("Identify")
     ET.SubElement(identify, "repositoryName").text = config["repository_name"]
-    ET.SubElement(identify, "baseURL").text = "https://" + config["repository_name"]
+    ET.SubElement(identify, "baseURL").text = "https://" + config["repository_domain"]
     ET.SubElement(identify, "protocolVersion").text = "2.0"
     ET.SubElement(identify, "earliestDatestamp").text = time.strftime("%Y-%m-%dT%H:%M:%SZ", modified)
     ET.SubElement(identify, "deletedRecord").text = "no"
