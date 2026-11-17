@@ -10,6 +10,7 @@ import os, glob, sys, time, argparse, re, datetime, yaml
 from dateutil.parser import isoparse
 import xml.etree.ElementTree as ET
 from edtf import parse_edtf, text_to_edtf, struct_time_to_date
+from pygments.lexers.arrow import IDENT
 
 with open("config.yaml", "r") as file:
     config = yaml.safe_load(file)
@@ -24,7 +25,7 @@ ROWS = 100
 #OAI-PMH VERB RESPONSES
 #----------------------
 
-# --- IDENTIFY ---
+# --- IDENTIFY --- #
 #provide content hub metadata
 def identify(verb):
     modified = get_earliest_date()
@@ -40,8 +41,6 @@ def identify(verb):
     ET.SubElement(identify, "granularity").text = "YYYY-MM-DDThh:mm:ssZ"  
     ET.SubElement(identify, "adminEmail").text = config["admin_email"]
     
-    #remaining metadata goes here
-    
     root.append(identify)
     
     return root
@@ -54,7 +53,7 @@ def get_earliest_date():
     modified = time.strptime(time.ctime(os.path.getmtime(files[0])))
     return modified
 
-# --- LIST IDENTIFIERS AND LIST RECORDS ---
+# --- LIST IDENTIFIERS AND LIST RECORDS --- #
 def list_identifiers_records(verb, setSpec, fromDate, untilDate, resumptionToken):
     
     root = construct_dom(verb)
@@ -173,6 +172,7 @@ def generate_items(verb, node, file_list):
         
     return node
 
+#generate header element for ListIdentifiers or ListRecords
 def generate_header(identifier, modified, setSpec):
     header = ET.Element("header")        
     ET.SubElement(header, "identifier").text = identifier
@@ -181,7 +181,7 @@ def generate_header(identifier, modified, setSpec):
     
     return header
        
-# --- LISTMETADATAFORMATS ---
+# --- LIST METADATA FORMATS --- #
 def list_metadata_formats(verb):
     root = construct_dom(verb)
     
@@ -196,7 +196,7 @@ def list_metadata_formats(verb):
     root.append(node)
     return root           
         
-# --- LIST SETS ---
+# --- LIST SETS --- #
 def list_sets(verb):
     
     root = construct_dom(verb)
@@ -228,6 +228,12 @@ def list_sets(verb):
         list_sets.append(set_node)
         
     root.append(list_sets)
+    
+    return root
+
+# --- GET RECORDS --- #
+def get_record(verb, identifier):
+    root = construct_dom(verb)
     
     return root
 
@@ -330,17 +336,19 @@ def main():
     
     parser = argparse.ArgumentParser()
     parser.add_argument("--verb", help="OAI-PMH verb parameter")
-    parser.add_argument("--metadataPrefix", help="metadataPrefox parameter for ListIdentifiers")
-    parser.add_argument("--setSpec", help="setSpec parameter for ListIdentifiers")
-    parser.add_argument("--fromDate", help="from parameter for ListIdentifiers")
-    parser.add_argument("--untilDate", help="until parameter for ListIdentifiers")
-    parser.add_argument("--resumptionToken", help="resumptionToken parameter for ListIdentifiers")
+    parser.add_argument("--metadataPrefix", help="metadataPrefox parameter for ListIdentifiers/ListRecords/GetRecord")
+    parser.add_argument("--setSpec", help="setSpec parameter for ListIdentifiers/ListRecords")
+    parser.add_argument("--fromDate", help="from parameter for ListIdentifiers/ListRecords")
+    parser.add_argument("--untilDate", help="until parameter for ListIdentifiers/ListRecords")
+    parser.add_argument("--resumptionToken", help="resumptionToken parameter for ListIdentifiers/ListRecords")
+    parser.add_argument("--identifier", help="identifier parameter for GetRecord")
     args = parser.parse_args()
     
     verb = '' if args.verb is None else args.verb
     metadataPrefix = '' if args.metadataPrefix is None else args.metadataPrefix
     setSpec = '' if args.setSpec is None else args.setSpec
     resumptionToken = '' if args.resumptionToken is None else args.resumptionToken
+    identifier = '' if args.identifier is None else args.identifier
     
     #validate from and until parameters and convert to epoch time. If they are blank, then set from to 0 time from Epoch and until to current time. Otherwise use provided parameters
     if args.fromDate is not None:
@@ -371,6 +379,13 @@ def main():
             dom = list_metadata_formats(verb)
         elif verb == "ListSets":
             dom = list_sets(verb)
+        elif verb == "GetRecord":   
+            if metadataPrefix != 'dplava':
+                dom = error(verb, code="cannotDisseminateFormat")
+            elif len(identifier) == 0:    
+                dom = error(verb, code="badArgument", message = "identifier is not set")   
+            else:
+                dom = get_record(verb, identifier)                
         elif verb == "ListIdentifiers" or verb == "ListRecords":
             #validate other responses            
             if metadataPrefix != 'dplava' and len(resumptionToken) == 0:
