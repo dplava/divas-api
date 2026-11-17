@@ -10,7 +10,6 @@ import os, glob, sys, time, argparse, re, datetime, yaml
 from dateutil.parser import isoparse
 import xml.etree.ElementTree as ET
 from edtf import parse_edtf, text_to_edtf, struct_time_to_date
-from pygments.lexers.arrow import IDENT
 
 with open("config.yaml", "r") as file:
     config = yaml.safe_load(file)
@@ -177,7 +176,7 @@ def generate_header(identifier, modified, setSpec):
     header = ET.Element("header")        
     ET.SubElement(header, "identifier").text = identifier
     ET.SubElement(header, "datestamp").text = time.strftime("%Y-%m-%dT%H:%M:%SZ", modified)
-    ET.SubElement(header, "setSpec").text = "setSpec"
+    ET.SubElement(header, "setSpec").text = setSpec
     
     return header
        
@@ -234,6 +233,35 @@ def list_sets(verb):
 # --- GET RECORDS --- #
 def get_record(verb, identifier):
     root = construct_dom(verb)
+    
+    path = identifier.replace(PREFIX, DATA_DIR).replace(":", "/") + ".xml"
+    if os.path.exists(path):
+        #generate header and load metadata from filesystem for single identifier
+        
+        #regenerate setSpec from identifier by stripping the OAI institutional prefix and excluding the filename
+        components = identifier.replace(PREFIX + ":", "").split(":")
+        setSpec = ":".join(components[0:-1])
+        
+        #convert modification timestamp of file to proper ISO date
+        modified = time.strptime(time.ctime(os.path.getmtime(path)))
+        
+        record = ET.Element("record")
+        #insert header
+        header = generate_header(identifier, modified, setSpec)
+        record.append(header)
+        
+        #insert metadata record from filesystem
+        metadata = ET.Element("metadata")
+        
+        xml_file = ET.parse(path).getroot()
+        metadata.append(xml_file)
+        record.append(metadata)
+        
+        #insert record element into ListRecords node
+        root.append(record)
+        
+    else:
+        ET.SubElement(root, "error", code="idDoesNotExist").text = "The value of the identifier argument is unknown or illegal in this repository."
     
     return root
 
