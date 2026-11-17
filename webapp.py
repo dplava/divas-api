@@ -13,7 +13,7 @@ from flask import Flask, request, redirect, Response
 from markupsafe import escape
 
 #include local OAI-PMH output processing functions
-from generate_oai_xml import error, identify, list_sets, list_metadata_formats, list_identifiers_records, validate_token
+from generate_oai_xml import error, identify, list_sets, list_metadata_formats, list_identifiers_records, get_record, validate_token
 
 app = Flask(__name__)
 
@@ -29,6 +29,7 @@ def oai_pmh():
     metadataPrefix = request.args.get('metadataPrefix', '')
     setSpec = request.args.get('setSpec', '')
     resumptionToken = request.args.get('resumptionToken', '')
+    identifier = request.args.get('identifier', '')
     
     #validate from and until parameters and convert to epoch time. If they are blank, then set from to 0 time from Epoch and until to current time. Otherwise use provided parameters
     if request.args.get('from') is not None:
@@ -58,6 +59,13 @@ def oai_pmh():
             dom = list_metadata_formats(verb)
         elif verb == "ListSets":
             dom = list_sets(verb)
+        elif verb == "GetRecord":   
+            if metadataPrefix != 'dplava':
+                dom = error(verb, code="cannotDisseminateFormat")
+            elif len(identifier) == 0:    
+                dom = error(verb, code="badArgument", message = "identifier is not set")   
+            else:
+                dom = get_record(verb, identifier)                
         elif verb == "ListIdentifiers" or verb == "ListRecords":
             #validate other responses
             if metadataPrefix != 'dplava' and len(resumptionToken) == 0:

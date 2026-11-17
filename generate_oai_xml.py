@@ -303,7 +303,7 @@ def construct_dom(verb):
     ET.indent(root, space="\t", level=0)
     
     #ET handling of namespaces is complex when embedding files from filesystem. This ensures no duplicate xmlns attributes
-    if verb != "ListRecords":
+    if verb != "ListRecords" and verb != "GetRecord":
         root.set("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance")
     
     #create propert ISO 8601 dateTime for GMT without milliseconds
