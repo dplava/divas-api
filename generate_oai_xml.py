@@ -146,6 +146,7 @@ def generate_items(verb, node, file_list):
             
             #insert metadata record from filesystem
             metadata = ET.Element("metadata")
+            
             xml_file = ET.parse(path).getroot()
             metadata.append(xml_file)
             record.append(metadata)
@@ -249,6 +250,10 @@ def construct_dom(verb):
                                          "xmlns:rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
                                          "xsi:schemaLocation": OAI_SCHEMA}) 
     ET.indent(root, space="\t", level=0)
+    
+    #ET handling of namespaces is complex when embedding files from filesystem. This ensures no duplicate xmlns attributes
+    if verb != "ListRecords":
+        root.set("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance")
     
     #create propert ISO 8601 dateTime for GMT without milliseconds
     ET.SubElement(root, "responseDate").text = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
