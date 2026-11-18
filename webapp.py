@@ -15,6 +15,9 @@ from markupsafe import escape
 #include local OAI-PMH output processing functions
 from generate_oai_xml import error, identify, list_sets, list_metadata_formats, list_identifiers_records, get_record, validate_token
 
+#acceptable metadataPrefixes
+METADATA_PREFIXES = ["dplava", "dpla_map"]
+
 app = Flask(__name__)
 
 @app.route("/")
@@ -60,15 +63,15 @@ def oai_pmh():
         elif verb == "ListSets":
             dom = list_sets(verb)
         elif verb == "GetRecord":   
-            if metadataPrefix != 'dplava':
+            if metadataPrefix not in METADATA_PREFIXES:
                 dom = error(verb, code="cannotDisseminateFormat")
             elif len(identifier) == 0:    
                 dom = error(verb, code="badArgument", message = "identifier is not set")   
             else:
-                dom = get_record(verb, identifier)                
+                dom = get_record(verb, metadataPrefix, identifier)                
         elif verb == "ListIdentifiers" or verb == "ListRecords":
             #validate other responses
-            if metadataPrefix != 'dplava' and len(resumptionToken) == 0:
+            if metadataPrefix not in METADATA_PREFIXES and len(resumptionToken) == 0:
                 #metadataPrefix is not necessary for resumptionTokens
                 dom = error(verb, code="cannotDisseminateFormat")
             elif fromDate_valid == False:
@@ -78,7 +81,7 @@ def oai_pmh():
             elif len(resumptionToken) > 0 and resumptionToken_valid == False:
                 dom = error(verb, code="badResumptionToken", message = "The value of the resumptionToken argument is invalid or expired.")
             else:
-                dom = list_identifiers_records(verb, setSpec, fromDate, untilDate, resumptionToken)
+                dom = list_identifiers_records(verb, setSpec, metadataPrefix, fromDate, untilDate, resumptionToken)
         else:
             dom = error(verb, code="badVerb")
     else:

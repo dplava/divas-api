@@ -14,11 +14,14 @@ from edtf import parse_edtf, text_to_edtf, struct_time_to_date
 with open("config.yaml", "r") as file:
     config = yaml.safe_load(file)
 
-OAI_SCHEMA = "http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd"
+#directory of Github repositories
 DATA_DIR = "../data"
-
+#OAI prefix format used for identifiers in OAI results
 PREFIX = "oai:" + config["repository_domain"]
+#number of records returned in a single response
 ROWS = 100
+#acceptable metadataPrefixes
+METADATA_PREFIXES = ["dplava", "dpla_map"]
 
 #----------------------
 #OAI-PMH VERB RESPONSES
@@ -53,9 +56,9 @@ def get_earliest_date():
     return modified
 
 # --- LIST IDENTIFIERS AND LIST RECORDS --- #
-def list_identifiers_records(verb, setSpec, fromDate, untilDate, resumptionToken):
+def list_identifiers_records(verb, setSpec, metadataPrefix, fromDate, untilDate, resumptionToken):
     
-    root = construct_dom(verb)
+    root = construct_dom(verb, metadataPrefix=metadataPrefix)
     
     #extract setSpect from resumptionToken
     if len(resumptionToken) > 0:
@@ -73,7 +76,7 @@ def list_identifiers_records(verb, setSpec, fromDate, untilDate, resumptionToken
             start = int(resumptionToken.split("/")[1]) if len(resumptionToken) > 0 else 0
             end = start + ROWS
                 
-            generate_items(verb, node, file_list[start:end])
+            generate_items(verb, metadataPrefix, node, file_list[start:end])
             
             #add resumptionToken if there are more pages to harvest
             if start + ROWS < total:        
@@ -85,7 +88,7 @@ def list_identifiers_records(verb, setSpec, fromDate, untilDate, resumptionToken
                 
         else:
             #output metadata for sets less than 100 items
-            generate_items(verb, node, file_list)        
+            generate_items(verb, metadataPrefix, node, file_list)        
         
         root.append(node)
     else:
@@ -131,7 +134,7 @@ def process_dates(files, fromDate, untilDate):
     return file_list
 
 #generate each header with included OAI_DC metadata, extracted directly from XML file on filesystem
-def generate_items(verb, node, file_list):
+def generate_items(verb, metadataPrefix, node, file_list):
     for path in file_list:
         #accommodate Windows and Unix paths
         path = path.replace("\\", "/")
@@ -162,8 +165,8 @@ def generate_items(verb, node, file_list):
             #insert metadata record from filesystem
             metadata = ET.Element("metadata")
             
-            xml_file = ET.parse(path).getroot()
-            metadata.append(xml_file)
+            model = process_xml_file(path, metadataPrefix)            
+            metadata.append(model)
             record.append(metadata)
             
             #insert record element into ListRecords node
@@ -185,13 +188,20 @@ def list_metadata_formats(verb):
     root = construct_dom(verb)
     
     node = ET.Element("ListMetadataFormats")
-    metadataFormat = ET.Element("metadataFormat")
     
+    #default dplava 'Dublin Core'-esque verbatim XML output
+    metadataFormat = ET.Element("metadataFormat")    
     ET.SubElement(metadataFormat, "metadataPrefix").text = "dplava"
     ET.SubElement(metadataFormat, "schema").text = "http://dplava.lib.virginia.edu/dplava.xsd"
-    ET.SubElement(metadataFormat, "metadataNamespace").text = "http://dplava.lib.virginia.edu"
-    
+    ET.SubElement(metadataFormat, "metadataNamespace").text = "http://dplava.lib.virginia.edu"    
     node.append(metadataFormat)    
+    
+    #dpla_map
+    metadataFormat = ET.Element("metadataFormat")    
+    ET.SubElement(metadataFormat, "metadataPrefix").text = "dpla_map"
+    ET.SubElement(metadataFormat, "metadataNamespace").text = "http://dp.la/about/map/"    
+    node.append(metadataFormat)    
+    
     root.append(node)
     return root           
         
@@ -231,8 +241,8 @@ def list_sets(verb):
     return root
 
 # --- GET RECORDS --- #
-def get_record(verb, identifier):
-    root = construct_dom(verb)
+def get_record(verb, metadataPrefix, identifier):
+    root = construct_dom(verb, metadataPrefix=metadataPrefix)
     
     path = identifier.replace(PREFIX, DATA_DIR).replace(":", "/") + ".xml"
     if os.path.exists(path):
@@ -253,8 +263,8 @@ def get_record(verb, identifier):
         #insert metadata record from filesystem
         metadata = ET.Element("metadata")
         
-        xml_file = ET.parse(path).getroot()
-        metadata.append(xml_file)
+        model = process_xml_file(path, metadataPrefix)
+        metadata.append(model)
         record.append(metadata)
         
         #insert record element into ListRecords node
@@ -273,6 +283,7 @@ def error(verb, code: str, message: str = None):
         ET.SubElement(root, "error", code=code).text = "Value of the verb argument is not a legal OAI-PMH verb, the verb argument is missing, or the verb argument is repeated."
     elif code == "cannotDisseminateFormat":
         ET.SubElement(root, "error", code=code).text = "The metadata format identified by the value given for the metadataPrefix argument is not supported by the item or by the repository."
+        root.set("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance")
     elif code == "badArgument" or code == "badResumptionToken":
         if message is not None:
             text = message
@@ -286,10 +297,12 @@ def error(verb, code: str, message: str = None):
     return root
 
 # CONSTRUCT DOM for OAI-PMH ROOT ELEMENT
-def construct_dom(verb):
+def construct_dom(verb, metadataPrefix = None):
     ET.register_namespace('',"http://www.openarchives.org/OAI/2.0/")
     ET.register_namespace('oai_dc',"http://www.openarchives.org/OAI/2.0/oai_dc/")
+    ET.register_namespace('dpla',"http://dp.la/about/map/")
     ET.register_namespace('dcterms',"http://purl.org/dc/terms/")
+    ET.register_namespace('dc',"http://purl.org/dc/elements/1.1/")
     ET.register_namespace('edm',"http://www.europeana.eu/schemas/edm/")
     ET.register_namespace('dplava',"http://dplava.lib.virginia.edu")
     ET.register_namespace('xsi',"http://www.w3.org/2001/XMLSchema-instance")  
@@ -298,24 +311,67 @@ def construct_dom(verb):
     root = ET.Element('OAI-PMH', attrib={"xmlns": "http://www.openarchives.org/OAI/2.0/",
                                          "xmlns:dc": "http://purl.org/dc/elements/1.1/",
                                          "xmlns:oai_dc": "http://www.openarchives.org/OAI/2.0/oai_dc/",
-                                         "xmlns:rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-                                         "xsi:schemaLocation": OAI_SCHEMA}) 
+                                         "xsi:schemaLocation": "http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd"}) 
     ET.indent(root, space="\t", level=0)
     
     #ET handling of namespaces is complex when embedding files from filesystem. This ensures no duplicate xmlns attributes
-    if verb != "ListRecords" and verb != "GetRecord":
+    if (verb != "ListRecords" and verb != "GetRecord") or metadataPrefix != "dplava":
         root.set("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance")
     
     #create propert ISO 8601 dateTime for GMT without milliseconds
     ET.SubElement(root, "responseDate").text = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     ET.SubElement(root, "request", verb=verb).text = config["base_endpoint_url"]
     
-    
     return root
 
 #------------------------
 #HELPER FUNCTIONS
 #------------------------
+#evaluate the metadataPrefix and either return the verbatim dplava model from filesystem or perform transformation into another model
+def process_xml_file(path, metadataPrefix):
+    xml_file = ET.parse(path).getroot()
+    
+    if metadataPrefix == "dplava":
+        return xml_file
+    elif metadataPrefix == "dpla_map":
+        root = ET.Element("rdf:RDF", attrib={"xmlns:rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+                                             "xmlns:dc": "http://purl.org/dc/elements/1.1/",                                         
+                                             "xmlns:dpla": "http://dp.la/about/map/",
+                                             "xmlns:edm": "http://www.europeana.eu/schemas/edm/"})
+        
+        cho = ET.Element("dpla:SourceResource")
+        cho_uri = xml_file.find("{http://www.europeana.eu/schemas/edm/}isShownAt").text
+        cho.set("rdf:about", cho_uri)
+        
+        for child in xml_file:
+            
+            #special processing for certain XML elements
+            if child.tag == "{http://purl.org/dc/terms/}created" or child.tag == "{http://purl.org/dc/terms/}date":
+                date_string = child.text.strip()
+                try:
+                    e = parse_edtf(date_string)
+                except:
+                    warn(f"Warning: {date} is not valid EDTF")   
+                else:
+                    fromDate = struct_time_to_date(e.lower_strict())
+                    toDate = struct_time_to_date(e.upper_strict())
+                    
+                    date = ET.Element("dc:date")
+                    time_span = ET.Element("edm:TimeSpan")
+                    ET.SubElement(time_span, "edm:begin").text = str(fromDate)
+                    ET.SubElement(time_span, "edm:end").text = str(toDate)
+                    date.append(time_span)
+                    cho.append(date)
+            elif child.tag == "{http://www.europeana.eu/schemas/edm/}isShownAt":
+                print("test")
+            else:
+                cho.append(child)
+        
+        
+        
+        root.append(cho)
+        
+        return root
 
 #validate ISO 8601 date times, from https://stackoverflow.com/questions/41129921/validate-an-iso-8601-datetime-string-in-python
 def validate_dateTime(dt_str, prop):
@@ -408,15 +464,15 @@ def main():
         elif verb == "ListSets":
             dom = list_sets(verb)
         elif verb == "GetRecord":   
-            if metadataPrefix != 'dplava':
+            if metadataPrefix not in METADATA_PREFIXES:
                 dom = error(verb, code="cannotDisseminateFormat")
             elif len(identifier) == 0:    
                 dom = error(verb, code="badArgument", message = "identifier is not set")   
             else:
-                dom = get_record(verb, identifier)                
+                dom = get_record(verb, metadataPrefix, identifier)                
         elif verb == "ListIdentifiers" or verb == "ListRecords":
             #validate other responses            
-            if metadataPrefix != 'dplava' and len(resumptionToken) == 0:
+            if metadataPrefix not in METADATA_PREFIXES and len(resumptionToken) == 0:
                 #metadataPrefix is not necessary for resumptionTokens
                 dom = error(verb, code="cannotDisseminateFormat")
             elif fromDate_valid == False:
@@ -426,7 +482,7 @@ def main():
             elif len(resumptionToken) > 0 and resumptionToken_valid == False:
                 dom = error(verb, code="badResumptionToken", message = "The value of the resumptionToken argument is invalid or expired.")
             else:
-                dom = list_identifiers_records(verb, setSpec, fromDate, untilDate, resumptionToken)
+                dom = list_identifiers_records(verb, setSpec, metadataPrefix, fromDate, untilDate, resumptionToken)
         else:
             dom = error(verb, code="badVerb")
     else:
