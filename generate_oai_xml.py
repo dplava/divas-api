@@ -359,10 +359,19 @@ def process_xml_file(path, metadataPrefix):
         
         if thumbnail is not None:
             ET.SubElement(aggregation, "edm:preview", attrib={"rdf:resource": thumbnail.text})
+            
+            #parse IIIF URLs
+            if "default.jpg" in thumbnail.text:
+                web_resource = ET.Element("edm:WebResource")
+                web_resource.set("rdf:about", thumbnail.text)
+                iiif_url = "/".join(thumbnail.text.split("/")[0:-4])
+                ET.SubElement(web_resource, "svcs:has_service", attrib={"rdf:resource": iiif_url})
+        
+        #insert ore:Aggregation into rdf:RDF root node    
         root.append(aggregation)
         
         if rights is not None:
-            if bool(re.match("^https?:\/\/", rights.text)) == True:
+            if bool(re.match("^https?://", rights.text)) == True:
                 ET.SubElement(aggregation, "edm:rights", attrib={"rdf:resource": rights.text})
         
         #dpla:SourceResource metadata for cultural heritage object
@@ -388,14 +397,27 @@ def process_xml_file(path, metadataPrefix):
                     ET.SubElement(time_span, "edm:end").text = str(toDate)
                     date.append(time_span)
                     cho.append(date)
+            elif child.tag == "{http://purl.org/dc/terms/}type":
+                #convert valid DCMI Types into URIs
+                value = child.text.strip()
+                if bool(re.match("^(Collection|Dataset|Event|Image|Interactive Resource|Moving Image|Physical Object|Service|Software|Sound|Still Image|Text)$", value, re.IGNORECASE)) == True:
+                    ET.SubElement(cho, "dcterms:type", attrib={"rdf:resource": "http://purl.org/dc/dcmitype/" + value.title().replace(" ", "")})
+                else:
+                    cho.append(child)
+            elif child.tag == "{http://purl.org/dc/terms/}medium":
+                #dcterms:medium is not part of DPLA MAP; convert to edm:hasType
+                ET.SubElement(cho, "edm:hasType").text = child.text                
             elif child.tag in suppressed_elements:
                 pass
             else:
                 cho.append(child)
         
         
-        
+        #append dpla:SourceResource
         root.append(cho)
+        
+        if "web_resource" in locals():
+            root.append(web_resource)
         
         return root
 
