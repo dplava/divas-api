@@ -328,19 +328,45 @@ def construct_dom(verb, metadataPrefix = None):
 #HELPER FUNCTIONS
 #------------------------
 #evaluate the metadataPrefix and either return the verbatim dplava model from filesystem or perform transformation into another model
-def process_xml_file(path, metadataPrefix):
+def process_xml_file(path, metadataPrefix): 
     xml_file = ET.parse(path).getroot()
     
     if metadataPrefix == "dplava":
         return xml_file
     elif metadataPrefix == "dpla_map":
+        #these are metadata elements written into other nodes and not carried in the dpla:SourceResource
+        suppressed_elements = ["{http://www.europeana.eu/schemas/edm/}isShownAt",
+                    "{http://www.europeana.eu/schemas/edm/}preview",
+                    "{http://purl.org/dc/terms/}rights",
+                    "{http://purl.org/dc/terms/}provenance"]
+        
         root = ET.Element("rdf:RDF", attrib={"xmlns:rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+                                             "xmlns:ore": "http://www.openarchives.org/ore/terms/",
                                              "xmlns:dc": "http://purl.org/dc/elements/1.1/",                                         
                                              "xmlns:dpla": "http://dp.la/about/map/",
                                              "xmlns:edm": "http://www.europeana.eu/schemas/edm/"})
         
-        cho = ET.Element("dpla:SourceResource")
+        
         cho_uri = xml_file.find("{http://www.europeana.eu/schemas/edm/}isShownAt").text
+        thumbnail = xml_file.find("{http://www.europeana.eu/schemas/edm/}preview")
+        rights = xml_file.find("{http://purl.org/dc/terms/}rights")
+        
+        #ore:Aggregation
+        aggregation = ET.Element("ore:Aggregation")
+        ET.SubElement(aggregation, "edm:aggregatedCHO", attrib={"rdf:resource": cho_uri})
+        ET.SubElement(aggregation, "edm:provider").text = config["repository_name"]
+        ET.SubElement(aggregation, "edm:dataProvider").text = xml_file.find("{http://purl.org/dc/terms/}provenance").text
+        
+        if thumbnail is not None:
+            ET.SubElement(aggregation, "edm:preview", attrib={"rdf:resource": thumbnail.text})
+        root.append(aggregation)
+        
+        if rights is not None:
+            if bool(re.match("^https?:\/\/", rights.text)) == True:
+                ET.SubElement(aggregation, "edm:rights", attrib={"rdf:resource": rights.text})
+        
+        #dpla:SourceResource metadata for cultural heritage object
+        cho = ET.Element("dpla:SourceResource")        
         cho.set("rdf:about", cho_uri)
         
         for child in xml_file:
@@ -362,8 +388,8 @@ def process_xml_file(path, metadataPrefix):
                     ET.SubElement(time_span, "edm:end").text = str(toDate)
                     date.append(time_span)
                     cho.append(date)
-            elif child.tag == "{http://www.europeana.eu/schemas/edm/}isShownAt":
-                print("test")
+            elif child.tag in suppressed_elements:
+                pass
             else:
                 cho.append(child)
         
