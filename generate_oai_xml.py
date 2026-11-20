@@ -344,8 +344,8 @@ def process_xml_file(path, metadataPrefix):
                                              "xmlns:ore": "http://www.openarchives.org/ore/terms/",
                                              "xmlns:dc": "http://purl.org/dc/elements/1.1/",                                         
                                              "xmlns:dpla": "http://dp.la/about/map/",
-                                             "xmlns:edm": "http://www.europeana.eu/schemas/edm/"})
-        
+                                             "xmlns:edm": "http://www.europeana.eu/schemas/edm/",
+                                             "xmlns:svcs": "http://rdfs.org/sioc/services#"})        
         
         cho_uri = xml_file.find("{http://www.europeana.eu/schemas/edm/}isShownAt").text
         thumbnail = xml_file.find("{http://www.europeana.eu/schemas/edm/}preview")
